@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מאמן ה-AI הצעיר</title>
+<style>
+/* ─── RESET & BASE ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Segoe UI', 'Arial', sans-serif;
+  direction: rtl;
+  background: #06081a;
+  color: #dde6ff;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+
+/* ─── ANIMATED BACKGROUND ──────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 10%, rgba(80,40,210,0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 70% at 85% 90%, rgba(0,180,230,0.09) 0%, transparent 65%),
+    linear-gradient(155deg, #06081a 0%, #0c1132 50%, #08061c 100%);
+  pointer-events: none;
+}
+
+/* ─── FLOATING GRID DOTS (aesthetic) ──────────────────────────── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    radial-gradient(circle, rgba(0,200,255,0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+/* ─── MAIN WRAPPER ─────────────────────────────────────────────── */
+#app {
+  position: relative; z-index: 1;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+}
+
+/* ─── HUD (fixed) ──────────────────────────────────────────────── */
+#hud {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(6,8,26,0.93);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(0,230,255,0.11);
+}
+#hud.hidden { display: none; }
+
+.hud-left, .hud-right {
+  display: flex; align-items: center; gap: 10px;
+}
+.hud-label {
+  font-size: 10px; font-weight: 800; color: #00e5ff;
+  letter-spacing: .08em; white-space: nowrap;
+}
+.meter-track {
+  width: 130px; height: 7px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  position: relative;
+  overflow: visible;
+}
+.meter-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6d28d9, #00e5ff);
+  transition: width .75s cubic-bezier(.4,0,.2,1), background .5s;
+  min-width: 7px;
+}
+.meter-dot {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #00e5ff;
+  box-shadow: 0 0 10px #00e5ff, 0 0 20px rgba(0,229,255,.5);
+  transition: left .75s cubic-bezier(.4,0,.2,1);
+  margin-left: -6px;
+}
+.goal-marker {
+  position: absolute; left: 85%; top: -5px; bottom: -5px;
+  width: 2px; background: #fbbf24; border-radius: 1px;
+}
+.goal-marker::before {
+  content: 'יעד';
+  position: absolute; bottom: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px; font-weight: 800; color: #fbbf24;
+  white-space: nowrap;
+}
+.meter-pct {
+  font-size: 14px; font-weight: 900; color: #00e5ff;
+  text-shadow: 0 0 10px rgba(0,229,255,.5);
+  min-width: 38px;
+}
+.level-badge {
+  background: rgba(109,40,217,.3);
+  border: 1px solid rgba(109,40,217,.55);
+  border-radius: 20px; padding: 3px 12px;
+  font-size: 12px; font-weight: 800; color: #c4b5fd;
+}
+.progress-dots { display: flex; gap: 5px; align-items: center; }
+.pdot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,0.13);
+  transition: all .35s;
+}
+.pdot.done    { background: #00e5ff; box-shadow: 0 0 7px #00e5ff; }
+.pdot.current { background: #a78bfa; box-shadow: 0 0 7px #a78bfa; transform: scale(1.25); }
+
+/* ─── SCREENS ──────────────────────────────────────────────────── */
+.screen {
+  width: 100%; max-width: 600px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 16px 50px;
+  gap: 14px;
+}
+.screen.c { justify-content: center; min-height: 100vh; }
+.hidden { display: none !important; }
+
+/* ─── INTRO SCREEN ─────────────────────────────────────────────── */
+#intro-screen { padding-top: 60px; text-align: center; gap: 10px; }
+
+.intro-robot {
+  font-size: 84px; line-height: 1; margin-bottom: 10px;
+  animation: float 3.2s ease-in-out infinite;
+  display: block;
+}
+@keyframes float {
+  0%,100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-16px) rotate(3deg); }
+}
+.intro-title {
+  font-size: 34px; font-weight: 900; letter-spacing: -.01em;
+  background: linear-gradient(135deg, #00e5ff 0%, #c4b5fd 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 8px;
+}
+.intro-sub {
+  font-size: 15px; color: rgba(200,215,255,.65);
+  line-height: 1.75; margin-bottom: 28px; max-width: 360px;
+}
+.intro-goal {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3);
+  border-radius: 12px; padding: 10px 18px;
+  font-size: 14px; color: #fcd34d; font-weight: 700;
+  margin-bottom: 28px;
+}
+.btn-lg {
+  background: linear-gradient(135deg, #5b21b6, #0891b2);
+  border-radius: 99px; padding: 16px 52px;
+  font-size: 18px; font-weight: 900; color: #fff;
+  box-shadow: 0 0 32px rgba(91,33,182,.5);
+  transition: transform .15s, box-shadow .15s;
+}
+.btn-lg:hover { transform: scale(1.04); box-shadow: 0 0 44px rgba(91,33,182,.75); }
+.btn-lg:active { transform: scale(.98); }
+
+/* ─── GAME SCREEN ──────────────────────────────────────────────── */
+#game-screen { padding-top: 74px; }
+
+/* --- Robot row --- */
+.robot-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%;
+}
+.robot-face {
+  width: 58px; height: 58px; flex-shrink: 0;
+  background: linear-gradient(150deg, #1a2550, #253468);
+  border-radius: 13px;
+  border: 2px solid rgba(0,229,255,.28);
+  box-shadow: 0 0 18px rgba(0,229,255,.08);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; position: relative;
+  transition: border-color .4s, box-shadow .4s, transform .3s;
+}
+.robot-face.happy {
+  border-color: rgba(0,229,255,.75);
+  box-shadow: 0 0 24px rgba(0,229,255,.32);
+}
+.robot-face.confused {
+  border-color: rgba(248,113,113,.7);
+  box-shadow: 0 0 24px rgba(248,113,113,.28);
+  transform: rotate(-2deg);
+}
+.r-antenna {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  width: 2px; height: 7px; background: rgba(0,229,255,.5);
+}
+.r-antenna::after {
+  content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #00e5ff; box-shadow: 0 0 8px #00e5ff;
+  animation: ab 1.6s ease-in-out infinite;
+}
+@keyframes ab { 0%,100% { opacity:1; } 50% { opacity:.18; } }
+.robot-face.confused .r-antenna::after { background: #f87171; box-shadow: 0 0 8px #f87171; }
+
+.r-eyes { display: flex; gap: 8px; }
+.r-eye {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #00e5ff; box-shadow: 0 0 6px #00e5ff;
+  transition: background .3s, box-shadow .3s, border-radius .3s;
+}
+.robot-face.confused .r-eye {
+  background: #f87171; box-shadow: 0 0 6px #f87171; border-radius: 3px;
+}
+.r-mouth {
+  width: 24px; height: 3px; border-radius: 2px;
+  background: #00e5ff;
+  transition: background .3s, transform .3s, border-radius .3s;
+}
+.robot-face.happy .r-mouth {
+  border-radius: 0 0 6px 6px; height: 4px;
+  box-shadow: 0 0 6px rgba(0,229,255,.5);
+}
+.robot-face.confused .r-mouth {
+  background: #f87171; transform: scaleX(.6) rotate(8deg);
+}
+
+.speech-bubble {
+  flex: 1;
+  background: rgba(0,229,255,.05);
+  border: 1px solid rgba(0,229,255,.16);
+  border-radius: 14px; border-top-right-radius: 4px;
+  padding: 10px 14px;
+  font-size: 14px; color: #a5d8ff; line-height: 1.6;
+  min-height: 46px; display: flex; align-items: center;
+  transition: border-color .4s;
+}
+.robot-face.confused ~ .speech-bubble {
+  border-color: rgba(248,113,113,.18); color: #fbb8b8;
+}
+
+/* --- Question card --- */
+.q-card {
+  width: 100%;
+  background: rgba(255,255,255,.032);
+  border: 1px solid rgba(0,229,255,.11);
+  border-radius: 20px; padding: 18px 24px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0,229,255,.04), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.q-line {
+  font-size: 15px; color: rgba(200,215,255,.62); margin-bottom: 14px;
+  font-weight: 500; letter-spacing: .02em;
+}
+.fraction-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; flex-wrap: wrap;
+}
+/* PROPER MATH FRACTION DISPLAY */
+.frac {
+  display: inline-flex; flex-direction: column;
+  align-items: center; gap: 0;
+  filter: drop-shadow(0 0 12px rgba(0,229,255,.45));
+}
+.frac-top, .frac-bot {
+  font-size: 32px; font-weight: 900; line-height: 1.05;
+  color: #00e5ff; padding: 0 4px;
+}
+.frac-bar {
+  width: 100%; min-width: 32px; height: 3px;
+  background: #00e5ff;
+  margin: 2px 0;
+}
+.of-word {
+  font-size: 20px; color: rgba(200,215,255,.5); font-weight: 600;
+}
+.qty-num {
+  font-size: 32px; font-weight: 900;
+  color: #c4b5fd;
+  filter: drop-shadow(0 0 12px rgba(196,181,253,.5));
+}
+
+/* --- Items area --- */
+.items-area { width: 100%; }
+.groups-wrap {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center; padding: 4px;
+}
+.group-box {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(0,229,255,.1);
+  background: rgba(0,229,255,.022);
+  cursor: pointer; user-select: none;
+  transition: border-color .2s, background .2s, box-shadow .2s, transform .1s;
+  justify-content: center;
+  min-width: 60px;
+}
+.group-box:hover {
+  border-color: rgba(0,229,255,.28);
+  background: rgba(0,229,255,.05);
+  transform: translateY(-1px);
+}
+.group-box.selected {
+  border-color: rgba(0,229,255,.7);
+  background: rgba(0,229,255,.11);
+  box-shadow: 0 0 18px rgba(0,229,255,.18), inset 0 0 12px rgba(0,229,255,.06);
+}
+.group-box.robot-sel {
+  border-color: rgba(167,139,250,.7);
+  background: rgba(167,139,250,.11);
+  box-shadow: 0 0 18px rgba(167,139,250,.2), inset 0 0 12px rgba(167,139,250,.06);
+}
+.group-box:active { transform: scale(.96); }
+.group-box.locked { cursor: default; }
+.group-box.locked:hover { transform: none; border-color: inherit; background: inherit; }
+
+/* Crystal items */
+.crystal {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #1a4d8a, #07132e);
+  border: 1.5px solid rgba(0,170,220,.4);
+  position: relative; flex-shrink: 0;
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+.crystal::after {
+  content: '';
+  position: absolute; top: 4px; left: 5px;
+  width: 7px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,.22);
+}
+.group-box.selected .crystal {
+  background: radial-gradient(circle at 32% 28%, #00d0f0, #005a88);
+  border-color: #00e5ff;
+  box-shadow: 0 0 9px rgba(0,229,255,.55), inset 0 0 4px rgba(0,229,255,.2);
+}
+.group-box.robot-sel .crystal {
+  background: radial-gradient(circle at 32% 28%, #a78bfa, #3b0f82);
+  border-color: #a78bfa;
+  box-shadow: 0 0 9px rgba(167,139,250,.55);
+}
+
+/* --- Hint / sel info --- */
+.hint-text {
+  font-size: 12px; color: rgba(200,215,255,.4); text-align: center;
+}
+.sel-info {
+  font-size: 14px; font-weight: 700; color: #00e5ff;
+  text-align: center; min-height: 24px;
+  transition: all .2s;
+}
+
+/* --- Submit btn --- */
+.btn-submit {
+  background: linear-gradient(135deg, #5b21b6, #0891b2);
+  border-radius: 99px; padding: 13px 38px;
+  font-size: 16px; font-weight: 900; color: #fff;
+  box-shadow: 0 0 22px rgba(91,33,182,.4);
+  transition: transform .15s, box-shadow .15s, opacity .2s;
+}
+.btn-submit:hover:not(:disabled) { transform: scale(1.04); box-shadow: 0 0 32px rgba(91,33,182,.65); }
+.btn-submit:active:not(:disabled) { transform: scale(.97); }
+.btn-submit:disabled { opacity: .3; cursor: not-allowed; }
+
+/* --- Feedback --- */
+.feedback-txt {
+  min-height: 26px; font-size: 15px; font-weight: 700;
+  text-align: center; transition: all .25s;
+}
+.feedback-txt.ok  { color: #4ade80; }
+.feedback-txt.err { color: #f87171; }
+.feedback-txt.info { color: #93c5fd; }
+
+/* --- Level 3 suggestion panel --- */
+.suggest-panel {
+  width: 100%;
+  background: rgba(109,40,217,.11);
+  border: 1px solid rgba(109,40,217,.32);
+  border-radius: 18px; padding: 16px 18px;
+}
+.suggest-lbl {
+  font-size: 11px; font-weight: 800; color: #c4b5fd;
+  letter-spacing: .08em; margin-bottom: 7px;
+}
+.suggest-body {
+  font-size: 14px; color: #ddd6fe; line-height: 1.6; margin-bottom: 12px;
+}
+.suggest-btns { display: flex; gap: 10px; }
+.btn-yes, .btn-no {
+  flex: 1; padding: 11px 8px;
+  border-radius: 12px; font-weight: 800; font-size: 14px;
+  transition: all .15s;
+}
+.btn-yes { border: 1.5px solid #4ade80; background: rgba(74,222,128,.1); color: #4ade80; }
+.btn-yes:hover { background: rgba(74,222,128,.2); transform: translateY(-1px); }
+.btn-no  { border: 1.5px solid #f87171; background: rgba(248,113,113,.1); color: #f87171; }
+.btn-no:hover  { background: rgba(248,113,113,.2); transform: translateY(-1px); }
+
+/* --- Explanation box --- */
+.explain-box {
+  width: 100%;
+  background: rgba(147,197,253,.07);
+  border: 1px solid rgba(147,197,253,.22);
+  border-radius: 14px; padding: 12px 16px;
+  font-size: 13px; color: #93c5fd; line-height: 1.65;
+}
+
+/* ─── LEVEL COMPLETE ────────────────────────────────────────────── */
+#lc-screen { text-align: center; }
+.lc-icon { font-size: 70px; line-height: 1; margin-bottom: 14px; animation: pop .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes pop { from { transform: scale(0); opacity:0; } to { transform: scale(1); opacity:1; } }
+.lc-title {
+  font-size: 26px; font-weight: 900;
+  background: linear-gradient(135deg, #00e5ff, #c4b5fd);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 8px;
+}
+.lc-msg { font-size: 14px; color: rgba(200,215,255,.62); line-height: 1.75; margin-bottom: 22px; max-width: 320px; }
+.acc-box {
+  background: rgba(0,229,255,.07); border: 1px solid rgba(0,229,255,.2);
+  border-radius: 18px; padding: 16px 32px; margin-bottom: 24px;
+}
+.acc-big { font-size: 40px; font-weight: 900; color: #00e5ff; }
+.acc-small { font-size: 12px; color: rgba(200,215,255,.5); margin-top: 2px; }
+
+/* ─── GAME COMPLETE ─────────────────────────────────────────────── */
+#done-screen { text-align: center; }
+.done-robot { font-size: 80px; line-height: 1; animation: float 3s ease-in-out infinite; margin-bottom: 14px; }
+.done-title {
+  font-size: 28px; font-weight: 900;
+  background: linear-gradient(135deg, #fbbf24, #00e5ff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 8px;
+}
+.done-msg { font-size: 14px; color: rgba(200,215,255,.65); line-height: 1.8; margin-bottom: 26px; max-width: 340px; white-space: pre-line; }
+
+/* ─── CELEBRATIONS ──────────────────────────────────────────────── */
+#cel {
+  position: fixed; inset: 0; z-index: 999; pointer-events: none;
+}
+.cf {
+  position: absolute; border-radius: 2px;
+  animation: cfall linear forwards;
+}
+@keyframes cfall {
+  from { transform: translateY(-30px) rotate(0deg); opacity: 1; }
+  to   { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* ─── UTILITY ANIMATIONS ─────────────────────────────────────────── */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-7px); }
+  40%,80% { transform: translateX(7px); }
+}
+.shake { animation: shake .35s ease !important; }
+
+@keyframes bounce {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+.bounce { animation: bounce .4s ease; }
+
+@keyframes glow-pulse {
+  0%,100% { box-shadow: 0 0 20px rgba(0,229,255,.15); }
+  50%      { box-shadow: 0 0 36px rgba(0,229,255,.35); }
+}
+.glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+
+@keyframes fade-in-up {
+  from { opacity:0; transform: translateY(10px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in-up .35s ease; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <span class="hud-label">דיוק המודל</span>
+      <div class="meter-track">
+        <div class="meter-fill" id="mfill"></div>
+        <div class="meter-dot"  id="mdot"></div>
+        <div class="goal-marker"></div>
+      </div>
+      <span class="meter-pct" id="mpct">50%</span>
+    </div>
+    <div class="hud-right">
+      <div class="level-badge" id="lbadge">רמה 1</div>
+      <div class="progress-dots" id="pdots"></div>
+    </div>
+  </div>
+
+  <!-- ── INTRO ─────────────────────────────────────────────── -->
+  <div id="intro-screen" class="screen c">
+    <span class="intro-robot">🤖</span>
+    <div class="intro-title">מאמן ה-AI הצעיר</div>
+    <div class="intro-sub">
+      רובוט קטן מנסה ללמוד שברים של כמות.<br>
+      כל תשובה נכונה שלך משפרת את הדיוק שלו!<br>
+      ברמה 3 — תצטרכו לבדוק אם הרובוט טועה.
+    </div>
+    <div class="intro-goal">🎯 המטרה: להגיע ל-85% דיוק</div>
+    <button class="btn-lg" id="btn-start">▶ התחל אימון</button>
+  </div>
+
+  <!-- ── GAME ──────────────────────────────────────────────── -->
+  <div id="game-screen" class="screen hidden">
+
+    <!-- Robot -->
+    <div class="robot-row">
+      <div class="robot-face" id="rface">
+        <div class="r-antenna"></div>
+        <div class="r-eyes"><div class="r-eye"></div><div class="r-eye"></div></div>
+        <div class="r-mouth"></div>
+      </div>
+      <div class="speech-bubble" id="rspeech"></div>
+    </div>
+
+    <!-- Question -->
+    <div class="q-card glow-pulse" id="q-card">
+      <div class="q-line">כמה הם</div>
+      <div class="fraction-row">
+        <div class="frac">
+          <span class="frac-top" id="fnum"></span>
+          <div  class="frac-bar"></div>
+          <span class="frac-bot" id="fden"></span>
+        </div>
+        <span class="of-word">מתוך</span>
+        <span class="qty-num" id="qty"></span>
+      </div>
+    </div>
+
+    <!-- Level 3: Robot suggestion -->
+    <div class="suggest-panel hidden" id="suggest-panel">
+      <div class="suggest-lbl">🤖 הצעת הרובוט:</div>
+      <div class="suggest-body" id="suggest-body"></div>
+      <div class="suggest-btns">
+        <button class="btn-yes" id="btn-yes">✓ נכון!</button>
+        <button class="btn-no"  id="btn-no">✗ אני אתקן</button>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div class="items-area">
+      <div class="groups-wrap" id="groups"></div>
+    </div>
+
+    <div class="hint-text" id="hint">לחץ על קבוצה כדי לבחור אותה</div>
+    <div class="sel-info"  id="sinfo"></div>
+
+    <button class="btn-submit hidden" id="btn-sub">אישור ✓</button>
+
+    <div class="feedback-txt" id="fb"></div>
+
+    <div class="explain-box hidden fade-in" id="explain"></div>
+  </div>
+
+  <!-- ── LEVEL COMPLETE ────────────────────────────────────── -->
+  <div id="lc-screen" class="screen c hidden">
+    <div class="lc-icon"  id="lcicon"></div>
+    <div class="lc-title" id="lctitle"></div>
+    <div class="lc-msg"   id="lcmsg"></div>
+    <div class="acc-box">
+      <div class="acc-big"   id="lcacc"></div>
+      <div class="acc-small">דיוק המודל הנוכחי</div>
+    </div>
+    <button class="btn-lg" id="btn-nextlv"></button>
+  </div>
+
+  <!-- ── GAME COMPLETE ─────────────────────────────────────── -->
+  <div id="done-screen" class="screen c hidden">
+    <div class="done-robot">🤖✨</div>
+    <div class="done-title">הרובוט אומן בהצלחה!</div>
+    <div class="done-msg" id="donemsg"></div>
+    <button class="btn-lg" id="btn-restart">🔄 אמן מחדש</button>
+  </div>
+
+</div><!-- #app -->
+
+<div id="cel" class="hidden"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     GAME SCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+"use strict";
+
+// ─── DATA ─────────────────────────────────────────────────────────
+
+const LEVELS = {
+  1: {
+    badge: "רמה 1",
+    name: "שברים פשוטים",
+    robotOpening: "אני לומד שברים! עזור לי – בחר קבוצה אחת נכונה.",
+    complete: "מדהים! למדתי שברים יחידתיים! 🎉",
+    problems: [
+      { N: 8,  num: 1, den: 2 },
+      { N: 9,  num: 1, den: 3 },
+      { N: 12, num: 1, den: 4 },
+      { N: 6,  num: 1, den: 3 },
+      { N: 10, num: 1, den: 5 },
+    ]
+  },
+  2: {
+    badge: "רמה 2",
+    name: "שברים מתקדמים",
+    robotOpening: "כעת נבחר יותר מקבוצה אחת! אני סומך עליך.",
+    complete: "וואו! עכשיו אני מבין שברים עם מונה גדול! 🚀",
+    problems: [
+      { N: 9,  num: 2, den: 3 },
+      { N: 8,  num: 3, den: 4 },
+      { N: 10, num: 2, den: 5 },
+      { N: 12, num: 3, den: 4 },
+      { N: 12, num: 2, den: 3 },
+    ]
+  },
+  3: {
+    badge: "רמה 3",
+    name: "בדיקת ה-AI",
+    robotOpening: "עכשיו אני אנסה לענות. תבדוק אם אני צודק!",
+    complete: "תודה שתיקנת אותי! כך AI לומד לשפר את עצמו! 🧠",
+    problems: [
+      // robotGroups = כמה קבוצות הרובוט בחר, robotCorrect = האם הוא צודק
+      { N: 12, num: 2, den: 3, robotGroups: 2, robotCorrect: true  },
+      { N: 10, num: 3, den: 5, robotGroups: 2, robotCorrect: false },
+      { N: 8,  num: 1, den: 2, robotGroups: 1, robotCorrect: true  },
+      { N: 9,  num: 2, den: 3, robotGroups: 1, robotCorrect: false },
+      { N: 12, num: 3, den: 4, robotGroups: 3, robotCorrect: true  },
+    ]
+  }
+};
+
+const MSG_OK = [
+  "נכון! הדיוק שלי עולה! ✓",
+  "יפה מאוד! למדתי!",
+  "בדיוק! תודה!",
+  "מצוין! מתעדכן... ✓",
+  "כן! הבנתי!",
+];
+const MSG_ERR = [
+  "אוי... אני מתבלבל.",
+  "זה לא נכון? אנסה שוב.",
+  "טעיתי. עזור לי להבין.",
+  "חישוב שגוי... מתעדכן.",
+  "אממ... טעות.",
+];
+
+// ─── STATE ────────────────────────────────────────────────────────
+
+const G = {
+  level: 1,
+  pIdx: 0,
+  accuracy: 50,
+  selected: new Set(),   // set of group indices
+  phase: 'play',         // play | suggestion | correction | wait
+};
+
+// ─── HELPERS ──────────────────────────────────────────────────────
+
+const $  = id => document.getElementById(id);
+const tx = (id, t) => $(id).textContent = t;
+const sh = id => $(id).classList.remove('hidden');
+const hd = id => $(id).classList.add('hidden');
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+function getLevelData() { return LEVELS[G.level]; }
+function getProblems()  { return getLevelData().problems; }
+function getP()         { return getProblems()[G.pIdx]; }
+function correctItems(p){ return p.num * (p.N / p.den); }
+
+function animEl(el, cls) {
+  if (typeof el === 'string') el = $(el);
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+}
+
+function showScreen(name) {
+  ['intro-screen','game-screen','lc-screen','done-screen'].forEach(s => hd(s));
+  sh(name);
+  (name === 'game-screen') ? sh('hud') : hd('hud');
+}
+
+// ─── HUD ──────────────────────────────────────────────────────────
+
+function updateHUD() {
+  const pct = Math.round(G.accuracy);
+  $('mfill').style.width  = pct + '%';
+  $('mdot').style.left    = 'calc(' + pct + '% - 6px)';
+  tx('mpct', pct + '%');
+  tx('lbadge', LEVELS[G.level].badge);
+
+  // Color theme by accuracy
+  if (pct >= 85) {
+    $('mfill').style.background = 'linear-gradient(90deg,#22c55e,#00e5ff)';
+    $('mdot').style.background  = '#4ade80';
+    $('mdot').style.boxShadow   = '0 0 10px #4ade80, 0 0 20px rgba(74,222,128,.5)';
+  } else if (pct >= 55) {
+    $('mfill').style.background = 'linear-gradient(90deg,#6d28d9,#00e5ff)';
+    $('mdot').style.background  = '#00e5ff';
+    $('mdot').style.boxShadow   = '0 0 10px #00e5ff, 0 0 20px rgba(0,229,255,.5)';
+  } else {
+    $('mfill').style.background = 'linear-gradient(90deg,#b91c1c,#f97316)';
+    $('mdot').style.background  = '#f97316';
+    $('mdot').style.boxShadow   = '0 0 10px #f97316, 0 0 20px rgba(249,115,22,.5)';
+  }
+
+  // Progress dots
+  const dots = $('pdots');
+  dots.innerHTML = '';
+  getProblems().forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'pdot' + (i < G.pIdx ? ' done' : i === G.pIdx ? ' current' : '');
+    dots.appendChild(d);
+  });
+}
+
+// ─── ROBOT ────────────────────────────────────────────────────────
+
+function setRobot(mood, msg) {
+  const face = $('rface');
+  face.className = 'robot-face' + (mood ? ' ' + mood : '');
+  if (msg != null) $('rspeech').textContent = msg;
+}
+
+// ─── GRID ─────────────────────────────────────────────────────────
+
+function buildGrid(p, preSelect = null, asRobot = false) {
+  const container = $('groups');
+  container.innerHTML = '';
+  G.selected = new Set();
+
+  const groupSize = p.N / p.den;
+  const numGroups = p.den;
+
+  for (let g = 0; g < numGroups; g++) {
+    const grp = document.createElement('div');
+    grp.className = 'group-box';
+    grp.dataset.g = g;
+
+    if (preSelect !== null && g < preSelect) {
+      if (asRobot) {
+        grp.classList.add('robot-sel');
+      } else {
+        grp.classList.add('selected');
+        G.selected.add(g);
+      }
+    }
+
+    for (let i = 0; i < groupSize; i++) {
+      const c = document.createElement('div');
+      c.className = 'crystal';
+      grp.appendChild(c);
+    }
+
+    grp.addEventListener('click', () => onGroupClick(g));
+    container.appendChild(grp);
+  }
+
+  updateSelInfo(p);
+  updateSubmitBtn();
+}
+
+function onGroupClick(g) {
+  if (G.phase === 'suggestion' || G.phase === 'wait') return;
+
+  const el = $('groups').querySelector(`[data-g="${g}"]`);
+  if (!el) return;
+
+  if (G.selected.has(g)) {
+    G.selected.delete(g);
+    el.classList.remove('selected');
+  } else {
+    G.selected.add(g);
+    el.classList.add('selected');
+  }
+
+  updateSelInfo(getP());
+  updateSubmitBtn();
+}
+
+function updateSelInfo(p) {
+  const cnt = G.selected.size * (p.N / p.den);
+  tx('sinfo', G.selected.size === 0 ? '' : `בחרת ${cnt} פריטים`);
+}
+
+function updateSubmitBtn() {
+  $('btn-sub').disabled = G.selected.size === 0;
+}
+
+// ─── LOAD PROBLEM ─────────────────────────────────────────────────
+
+function loadProblem() {
+  const p = getP();
+  G.phase = 'play';
+
+  // Update fraction display
+  tx('fnum', p.num);
+  tx('fden', p.den);
+  tx('qty',  p.N);
+
+  // Clear feedback / explain
+  $('fb').textContent = '';
+  $('fb').className = 'feedback-txt';
+  hd('explain');
+
+  if (G.level === 3) {
+    // ── LEVEL 3: robot suggests first ──────────────────────────────
+    G.phase = 'suggestion';
+    hd('btn-sub');
+    hd('hint');
+    sh('suggest-panel');
+
+    const gs = p.N / p.den;
+    const robotItems = p.robotGroups * gs;
+
+    tx('suggest-body',
+      `הרובוט חושב: "${robotItems} פריטים (${p.robotGroups} מתוך ${p.den} קבוצות)"`);
+
+    buildGrid(p, p.robotGroups, true);
+    setRobot('neutral', `שאלה: ${p.num}/${p.den} מתוך ${p.N}. בדוק את הצעתי!`);
+
+    // Button handlers
+    $('btn-yes').onclick = () => onSuggestion(true);
+    $('btn-no').onclick  = () => onSuggestion(false);
+
+  } else {
+    // ── LEVELS 1 & 2 ───────────────────────────────────────────────
+    hd('suggest-panel');
+    sh('hint');
+    buildGrid(p);
+    sh('btn-sub');
+    $('btn-sub').disabled = true;
+
+    const ld = getLevelData();
+    setRobot('neutral',
+      G.pIdx === 0
+        ? ld.robotOpening
+        : `${p.num}/${p.den} מתוך ${p.N}. כמה קבוצות צריך לבחור?`
+    );
+  }
+
+  updateHUD();
+  animEl('q-card', 'fade-in');
+}
+
+// ─── LEVEL 3 SUGGESTION RESPONSE ─────────────────────────────────
+
+function onSuggestion(playerSaysOK) {
+  const p = getP();
+  hd('suggest-panel');
+
+  if (playerSaysOK && p.robotCorrect) {
+    // ✓ Confirmed correctly
+    registerResult(true,
+      "כן! הרובוט צדק ואתה אישרת נכון!",
+      null, null);
+
+  } else if (!playerSaysOK && !p.robotCorrect) {
+    // ✓ Correctly identified error → manual correction
+    G.phase = 'correction';
+    buildGrid(p);
+    sh('btn-sub');
+    sh('hint');
+    $('btn-sub').disabled = true;
+    setRobot('confused', `אתה צודק, טעיתי! בחר את הקבוצות הנכונות.`);
+
+  } else if (playerSaysOK && !p.robotCorrect) {
+    // ✗ Trusted wrong robot
+    const correct = correctItems(p);
+    registerResult(false,
+      "אוי! הרובוט טעה ואתה האמנת לו...",
+      `לא נכון לסמוך עיוורון על AI. התשובה הנכונה היא ${correct} פריטים (${p.num} מתוך ${p.den} קבוצות = ${p.num}×${p.N/p.den}).`,
+      null);
+
+  } else {
+    // ✗ Said robot is wrong when he was right
+    const correct = correctItems(p);
+    registerResult(false,
+      "הרובוט למעשה צדק! כדאי לבדוק שוב לפני שמתקנים.",
+      `הרובוט בחר נכון: ${correct} פריטים = ${p.num}/${p.den} מתוך ${p.N}.`,
+      null);
+  }
+}
+
+// ─── MANUAL CORRECTION (level 3 after "I'll fix") ─────────────────
+
+function onManualCorrection() {
+  const p = getP();
+  const gs = p.N / p.den;
+  const chosen = G.selected.size * gs;
+  const correct = correctItems(p);
+
+  if (chosen === correct) {
+    registerResult(true,
+      "מצוין! תיקנת את הרובוט! כך AI לומד לשפר את עצמו! 🧠",
+      null, null);
+  } else {
+    registerResult(false,
+      "לא מדויק – ננסה שוב.",
+      `התשובה הנכונה: ${correct} פריטים (${p.num} מתוך ${p.den} קבוצות = ${p.num}×${gs}).`,
+      null);
+  }
+}
+
+// ─── SUBMIT (levels 1 & 2) ────────────────────────────────────────
+
+function onSubmit() {
+  const p = getP();
+  const gs = p.N / p.den;
+  const chosen = G.selected.size * gs;
+  const correct = correctItems(p);
+
+  if (chosen === correct) {
+    registerResult(true,
+      rand(MSG_OK),
+      null, null);
+  } else {
+    registerResult(false,
+      rand(MSG_ERR),
+      `התשובה הנכונה: ${correct} פריטים. ${p.num}/${p.den} מתוך ${p.N} = ${p.num}×${gs} = ${correct}.`,
+      null);
+  }
+}
+
+// ─── REGISTER RESULT ──────────────────────────────────────────────
+
+function registerResult(isOK, robotMsg, explanation, _) {
+  G.phase = 'wait';
+  hd('btn-sub');
+  hd('suggest-panel');
+  hd('hint');
+
+  // Accuracy update
+  G.accuracy = isOK
+    ? Math.min(100, G.accuracy + 6)
+    : Math.max(8,   G.accuracy - 8);
+
+  setRobot(isOK ? 'happy' : 'confused', robotMsg);
+
+  // Feedback text
+  const fb = $('fb');
+  if (isOK) {
+    fb.textContent = '✓ נכון! דיוק המודל עלה!';
+    fb.className = 'feedback-txt ok';
+    animEl('q-card', 'bounce');
+    if (G.accuracy >= 85) celebrate();
+  } else {
+    fb.textContent = '✗ לא מדויק.';
+    fb.className = 'feedback-txt err';
+    animEl('groups', 'shake');
+  }
+
+  // Show correct answer highlighted
+  showCorrect(getP());
+
+  // Explanation box
+  if (explanation) {
+    $('explain').textContent = '💡 ' + explanation;
+    sh('explain');
+  }
+
+  updateHUD();
+
+  // Auto-advance
+  setTimeout(() => {
+    if (isOK) {
+      advance();
+    } else {
+      loadProblem();
+    }
+  }, isOK ? 1800 : 2200);
+}
+
+function showCorrect(p) {
+  const groups = $('groups').querySelectorAll('.group-box');
+  groups.forEach((grp, i) => {
+    grp.classList.remove('selected', 'robot-sel');
+    grp.classList.add('locked');
+    if (i < p.num) grp.classList.add('selected');
+  });
+}
+
+// ─── ADVANCE ──────────────────────────────────────────────────────
+
+function advance() {
+  G.pIdx++;
+  if (G.pIdx >= getProblems().length) {
+    showLevelComplete();
+  } else {
+    loadProblem();
+  }
+}
+
+// ─── LEVEL COMPLETE ───────────────────────────────────────────────
+
+function showLevelComplete() {
+  showScreen('lc-screen');
+
+  const icons = { 1:'⭐', 2:'🌟', 3:'🏆' };
+  tx('lcicon',  icons[G.level]);
+  tx('lctitle', `רמה ${G.level} הושלמה!`);
+  tx('lcmsg',   LEVELS[G.level].complete);
+  tx('lcacc',   Math.round(G.accuracy) + '%');
+
+  if (G.level < 3) {
+    const next = G.level + 1;
+    $('btn-nextlv').textContent = `המשך לרמה ${next} →`;
+    $('btn-nextlv').onclick = () => {
+      G.level++;
+      G.pIdx = 0;
+      showScreen('game-screen');
+      loadProblem();
+    };
+  } else {
+    $('btn-nextlv').textContent = '🎉 ראה תוצאה סופית';
+    $('btn-nextlv').onclick = showDone;
+  }
+}
+
+// ─── GAME DONE ────────────────────────────────────────────────────
+
+function showDone() {
+  showScreen('done-screen');
+  const pct = Math.round(G.accuracy);
+
+  let status;
+  if (pct >= 85) status = '🎯 עברת את היעד! המודל מוכן לשימוש!\nרובוט ה-AI שלך מדויק ואמין.';
+  else if (pct >= 65) status = '📈 המודל התקדם מאוד, אבל עדיין יש מה לשפר.\nנסה שוב לחזק את הדיוק!';
+  else status = '🔄 המודל צריך עוד אימון – אבל כל ניסיון עוזר!\nזה בדיוק איך AI לומד.';
+
+  tx('donemsg',
+    `דיוק סופי: ${pct}%\n\n${status}\n\nלמדת לאמן AI — אחד הכישורים החשובים של העתיד!`);
+
+  celebrate();
+}
+
+// ─── CELEBRATION ──────────────────────────────────────────────────
+
+function celebrate() {
+  const cel = $('cel');
+  cel.classList.remove('hidden');
+  cel.innerHTML = '';
+  const colors = ['#00e5ff','#c4b5fd','#fbbf24','#4ade80','#f87171','#38bdf8','#fb923c'];
+  for (let i = 0; i < 55; i++) {
+    const c = document.createElement('div');
+    c.className = 'cf';
+    c.style.left   = (Math.random() * 100) + 'vw';
+    c.style.width  = (Math.random() * 7 + 5) + 'px';
+    c.style.height = (Math.random() * 7 + 5) + 'px';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration = (Math.random() * 1.4 + 1.2) + 's';
+    c.style.animationDelay    = (Math.random() * 0.9) + 's';
+    cel.appendChild(c);
+  }
+  setTimeout(() => { cel.innerHTML = ''; hd('cel'); }, 3200);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+
+function startGame() {
+  G.level    = 1;
+  G.pIdx     = 0;
+  G.accuracy = 50;
+  showScreen('game-screen');
+  loadProblem();
+}
+
+function init() {
+  $('btn-start').onclick = startGame;
+  $('btn-restart').onclick = startGame;
+
+  $('btn-sub').onclick = () => {
+    if (G.phase === 'correction') onManualCorrection();
+    else onSubmit();
+  };
+
+  showScreen('intro-screen');
+}
+
+init();
+</script>
+</body>
+</html>
